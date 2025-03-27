@@ -44,10 +44,7 @@ namespace PharmaConnect2
         /// </summary>
         public string prescription_institution { get; set; } = string.Empty;
 
-        /// <summary>
-        /// 처방의
-        /// </summary>
-        public string prescribing_doctor { get; set; } = string.Empty;
+    
 
         /// <summary>
         /// 보험 코드
@@ -88,8 +85,6 @@ namespace PharmaConnect2
             Console.WriteLine($"환자 생년월일: {patient_birthdate}");
             Console.WriteLine($"환자 성별: {patient_gender}");
             Console.WriteLine($"환자 성명: {patient_name}");
-            Console.WriteLine($"처방 기관: {prescription_institution}");
-            Console.WriteLine($"처방의: {prescribing_doctor}");
             Console.WriteLine($"보험 코드: {insurance_code}");
             Console.WriteLine($"의약품 명: {medicine_name}");
             Console.WriteLine($"의약품에 대한 의사 메모: {medicine_doctor_note}");

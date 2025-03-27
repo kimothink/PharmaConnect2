@@ -1,6 +1,7 @@
 ﻿using PharmaConnect2;
 using System.Text.RegularExpressions;
 using System.Text;
+using System.IO;
 
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -67,7 +68,6 @@ void ProcessFile(string filePath)
         prescriptionDetail.patient_birthdate = splitContent[4];
         prescriptionDetail.patient_gender = splitContent[3].Substring(19, 1);
         prescriptionDetail.patient_name = splitContent[5];
-        prescriptionDetail.prescribing_doctor = splitContent[7];
 
         var JVMmatch = Regex.Match(content, @"\|JVMHEAD\|(.*?)\|JVMEND\|", RegexOptions.Singleline);
         if (!JVMmatch.Success)
@@ -84,29 +84,100 @@ void ProcessFile(string filePath)
             {
                 continue;
             }
+            string[] JVMContent = Regex.Split(part, @"\s{3,}");
 
-            string[] JVMContent = part.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            prescriptionDetail.insurance_code = JVMContent[0];
-            prescriptionDetail.medicine_name = JVMContent[1];
-            prescriptionDetail.medicine_days_taken = int.Parse(JVMContent[2]);
-            string lastElement = JVMContent[JVMContent.Length - 1];
-
-            bool containsDot = lastElement.Contains(".");
-            if (containsDot)
+            if (JVMContent.Length == 4)
             {
-                string[] parts = lastElement.Split('.');
+                prescriptionDetail.insurance_code = JVMContent[0];
+                prescriptionDetail.medicine_name = JVMContent[1];
+                prescriptionDetail.medicine_doctor_note = JVMContent[JVMContent.Length - 1] == "" ? string.Concat(JVMContent[JVMContent.Length - 1].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Take(JVMContent[JVMContent.Length - 1].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Length - 2)) : JVMContent[JVMContent.Length - 1];
+                //prescriptionDetail.medicine_days_taken = int.Parse(JVMContent[2]);
+                string lastElement = JVMContent[JVMContent.Length - 1] =="" ? JVMContent[JVMContent.Length - 2] : JVMContent[JVMContent.Length - 1];
+                lastElement = string.Join(" ", Regex.Matches(lastElement, @"\d+(\.\d+)?")
+                           .Cast<Match>()
+                           .Select(m => m.Value));
 
-                string beforeDot = parts[0];
+                string[] usageDirections = lastElement.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                prescriptionDetail.medicine_days_taken = int.Parse(usageDirections[0]);
+                bool containsDot = usageDirections[1].Contains(".");
+                if (containsDot)
+                {
+                    string[] parts = usageDirections[1].Split('.');
 
-                char lastChar = beforeDot.Last();
-                prescriptionDetail.medicine_dosage = float.Parse(lastChar.ToString() + "." + parts[1]);
-                prescriptionDetail.medicine_dosage_count = (int)(float.Parse(beforeDot) - prescriptionDetail.medicine_dosage);
+                    string beforeDot = parts[0];
+
+                    char lastChar = beforeDot.Last();
+                    prescriptionDetail.medicine_dosage = float.Parse(lastChar.ToString() + "." + parts[1]);
+                    prescriptionDetail.medicine_dosage_count = (int)(float.Parse(beforeDot) - prescriptionDetail.medicine_dosage);
+                }
+                else
+                {
+                    prescriptionDetail.medicine_dosage_count = int.Parse(usageDirections[^1].Substring(0, 1));
+                    prescriptionDetail.medicine_dosage = float.Parse(usageDirections[^1].Substring(1, 1));
+                }
             }
             else
             {
-                prescriptionDetail.medicine_dosage_count = int.Parse(lastElement.Substring(0, 1));
-                prescriptionDetail.medicine_dosage = float.Parse(lastElement.Substring(1, 1));
+                prescriptionDetail.insurance_code = JVMContent[0];
+                prescriptionDetail.medicine_name = JVMContent[1];
+
+                //prescriptionDetail.medicine_days_taken = int.Parse(JVMContent[2]);
+                string lastElement = JVMContent[JVMContent.Length - 1] == "" ? JVMContent[JVMContent.Length - 2] : JVMContent[JVMContent.Length - 1];
+                lastElement = string.Join(" ", Regex.Matches(lastElement, @"\d+(\.\d+)?")
+                           .Cast<Match>()
+                           .Select(m => m.Value)); 
+                string[] usageDirections = lastElement.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (usageDirections.Length >= 2)
+                {
+                    prescriptionDetail.medicine_doctor_note =  "";
+                    prescriptionDetail.medicine_days_taken = int.Parse(usageDirections[^2]);
+                    bool containsDot = usageDirections[^1].Contains(".");
+                    if (containsDot)
+                    {
+                        string[] parts = usageDirections[^1].Split('.');
+
+                        string beforeDot = parts[0];
+           char lastChar = beforeDot.Last();
+             
+                        prescriptionDetail.medicine_dosage = float.Parse(lastChar.ToString() + "." + parts[1]);
+                        prescriptionDetail.medicine_dosage_count = int.TryParse(usageDirections[^1].Replace(prescriptionDetail.medicine_dosage.ToString(), ""), out int result)
+    ? result
+    : 0;
+                    }
+                    else
+                    {
+                        prescriptionDetail.medicine_dosage_count = int.TryParse(usageDirections[^1].Replace(prescriptionDetail.medicine_dosage.ToString(), ""), out int result)
+                        ? result
+                        : 0; prescriptionDetail.medicine_dosage = float.Parse(usageDirections[^1].Substring(1, 1));
+                    }
+                }
+                else
+                {
+                    prescriptionDetail.medicine_days_taken = int.Parse(usageDirections[^2]);
+                    bool containsDot = usageDirections[^1].Contains(".");
+                    if (containsDot)
+                    {
+                        string[] parts = usageDirections[^1].Split('.');
+
+                        string beforeDot = parts[0];
+
+                        char lastChar = beforeDot.Last();
+                        prescriptionDetail.medicine_dosage = float.Parse(lastChar.ToString() + "." + parts[1]);
+                        prescriptionDetail.medicine_dosage_count = int.TryParse(usageDirections[^1].Replace(prescriptionDetail.medicine_dosage.ToString(), ""), out int result)
+                        ? result
+                        : 0;
+                    }
+                    else
+                    {
+                        prescriptionDetail.medicine_dosage_count = int.TryParse(usageDirections[^1].Replace(prescriptionDetail.medicine_dosage.ToString(), ""), out int result)
+                        ? result
+                        : 0; prescriptionDetail.medicine_dosage = float.Parse(usageDirections[^1].Substring(1, 1));
+                    }
+
+                }
             }
+            
+
 
             prescriptionDetail.PrintPrescriptionDetail();
         }
